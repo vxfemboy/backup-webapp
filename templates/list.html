@@ -1,0 +1,196 @@
+<!doctype html>
+<html>
+    <head>
+        <title>Backups</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                max-width: 800px;
+                margin: 0 auto;
+                padding: 20px;
+            }
+            .backup-list {
+                margin-top: 20px;
+            }
+            .backup-item {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 10px;
+                border-bottom: 1px solid #eee;
+            }
+            .button {
+                background-color: #4caf50;
+                color: white;
+                padding: 10px 20px;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+            }
+            .button:hover {
+                background-color: #45a049;
+            }
+            #progress {
+                display: none;
+                margin-top: 20px;
+            }
+            progress {
+                width: 100%;
+            }
+            .progress-container {
+                position: relative;
+                width: 100%;
+                margin-top: 10px;
+            }
+            #progress-bar {
+                width: 100%;
+                height: 20px;
+            }
+            #progress-percentage {
+                position: absolute;
+                left: 50%;
+                top: 50%;
+                transform: translate(-50%, -50%);
+                color: #000;
+                font-size: 12px;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Backups</h1>
+
+        <button class="button" onclick="createBackup()" id="createButton">
+            Create New Backup
+        </button>
+
+        <div id="progress" style="display: none">
+            <p id="status">Initializing backup...</p>
+            <div class="progress-container">
+                <progress id="progress-bar" value="0" max="100"></progress>
+                <span id="progress-percentage">0%</span>
+            </div>
+        </div>
+
+        <div class="backup-list">
+            {{range .backups}}
+            <div class="backup-item">
+                <span>{{.}}</span>
+                <button class="button" onclick="downloadBackup('{{.}}')">
+                    Download
+                </button>
+            </div>
+            {{end}}
+        </div>
+
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                    {{if .activeBackup}}
+                        const activeBackup = {{.activeBackup}};
+                        if (activeBackup && activeBackup.status !== "completed" && activeBackup.status !== "error") {
+                            showProgress();
+                            updateProgress(activeBackup.percentage, activeBackup.filename);
+                            startProgressMonitoring();
+                        }
+                    {{end}}
+                });
+
+                function showProgress() {
+                    document.getElementById("progress").style.display = "block";
+                    document.getElementById("createButton").disabled = true;
+                }
+
+                function hideProgress() {
+                    document.getElementById("progress").style.display = "none";
+                    document.getElementById("createButton").disabled = false;
+                }
+
+                function updateProgress(percentage, filename) {
+                    const progressBar = document.getElementById("progress-bar");
+                    const progressPercentage = document.getElementById("progress-percentage");
+                    const status = document.getElementById("status");
+
+                    const percent = Math.round(percentage);
+                    progressBar.value = percent;
+                    progressPercentage.textContent = `${percent}%`;
+                    status.textContent = `Creating backup: ${filename}`;
+                }
+
+                function createBackup() {
+                    showProgress();
+                    startProgressMonitoring();
+                }
+
+                function startProgressMonitoring() {
+                    const eventSource = new EventSource("/backup/create");
+
+                    eventSource.addEventListener("progress", (e) => {
+                        const data = JSON.parse(e.data);
+
+                        switch (data.status) {
+                            case "compressing":
+                                updateProgress(data.percentage, data.filename);
+                                break;
+
+                            case "completed":
+                                const status = document.getElementById("status");
+                                status.textContent = "Backup completed successfully!";
+                                updateProgress(100, data.filename);
+                                eventSource.close();
+                                setTimeout(() => {
+                                    hideProgress();
+                                    location.reload();
+                                }, 2000);
+                                break;
+
+                            case "error":
+                                const errorStatus = document.getElementById("status");
+                                errorStatus.textContent = `Error: ${data.filename}`;
+                                eventSource.close();
+                                setTimeout(hideProgress, 3000);
+                                break;
+                        }
+                    });
+
+                    eventSource.onerror = (error) => {
+                        console.error("EventSource failed:", error);
+                        const status = document.getElementById("status");
+                        status.textContent = "Error: Connection lost";
+                        eventSource.close();
+                        setTimeout(hideProgress, 3000);
+                    };
+                }
+
+                function downloadBackup(filename) {
+                    fetch("/backup/download/" + filename)
+                        .then((response) => {
+                            if (!response.ok) {
+                                if (
+                                    response.status === 401 ||
+                                    response.status === 403
+                                ) {
+                                    window.location.href = "/backup/login";
+                                    return;
+                                }
+                                throw new Error("Download failed");
+                            }
+                            return response.blob();
+                        })
+                        .then((blob) => {
+                            if (blob) {
+                                const url = window.URL.createObjectURL(blob);
+                                const a = document.createElement("a");
+                                a.href = url;
+                                a.download = filename;
+                                document.body.appendChild(a);
+                                a.click();
+                                window.URL.revokeObjectURL(url);
+                                a.remove();
+                            }
+                        })
+                        .catch((error) => {
+                            console.error("Error:", error);
+                        });
+                }
+        </script>
+    </body>
+</html>

@@ -1,0 +1,23 @@
+# config.toml
+[server]
+host = "127.0.0.1"           # Domain or IP address
+port = 8443                  # Port number for the backup system
+use_tls = false              # Set to true to enable HTTPS
+base_url = "/backup"         # Base URL for the backup system
+
+[tls]
+cert_file = "fullchain.pem"  # Path to the certificate file
+key_file = "privkey.pem"     # Path to the private key file
+
+[backup]
+dirs = [
+    "/path/to/project1",
+    "/path/to/project2",
+]                            # Directories to backup
+
+storage_path = "./backups/"  # Path to store backup files
+backup_prefix = "backup"     # Prefix for backup filenames
+
+[auth]
+password_hash = "XXXXXXXXX"  # Password hash in bcrypt
+session_timeout = 604800     # Session timeout in seconds
