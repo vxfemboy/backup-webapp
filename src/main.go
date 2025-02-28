@@ -38,6 +38,7 @@ type Config struct {
 		Dirs         []string `toml:"dirs"`
 		StoragePath  string   `toml:"storage_path"`
 		BackupPrefix string   `toml:"backup_prefix"`
+		CronSchedule string   `toml:"cron_schedule"`
 	} `toml:"backup"`
 	Auth struct {
 		PasswordHash   string `toml:"password_hash"`
@@ -216,11 +217,15 @@ func main() {
 		log.Fatalf("Failed to create backup storage directory: %v", err)
 	}
 
-	// Setup cron for monthly backups
+	// Setup cron for backups
 	c := cron.New()
-	c.AddFunc("0 0 1 * *", func() {
+	cronSchedule := config.Backup.CronSchedule
+	if _, err := cron.ParseStandard(config.Backup.CronSchedule); err != nil {
+		log.Fatalf("Invalid Cron Expression %v", err)
+	}
+	c.AddFunc(cronSchedule, func() {
 		if _, err := createBackup(); err != nil {
-			log.Printf("Monthly backup failed: %v", err)
+			log.Printf("Backup failed: %v", err)
 		}
 	})
 	c.Start()
@@ -431,7 +436,7 @@ func handleDownload(c *gin.Context) {
 }
 
 func createBackup() (string, error) {
-	date := time.Now().Format("02-01-2006")
+	date := time.Now().Format("02-01-2006T15:04:05")
 	filename := fmt.Sprintf("%s-%s.tar.gz", config.Backup.BackupPrefix, date)
 	backupPath := filepath.Join(config.Backup.StoragePath, filename)
 
@@ -509,7 +514,7 @@ func createBackup() (string, error) {
 }
 
 func createBackupWithProgress(clientChan chan BackupProgress, done chan struct{}) (string, error) {
-	date := time.Now().Format("02-01-2006")
+	date := time.Now().Format("02-01-2006T15:04:05")
 	filename := fmt.Sprintf("%s-%s.tar.gz", config.Backup.BackupPrefix, date)
 	backupPath := filepath.Join(config.Backup.StoragePath, filename)
 
