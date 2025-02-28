@@ -14,9 +14,9 @@ dirs = [
     "/path/to/project1",
     "/path/to/project2",
 ]                            # Directories to backup
-
 storage_path = "./backups/"  # Path to store backup files
 backup_prefix = "backup"     # Prefix for backup filenames
+cron_schedule = "0 0 1 * *"  # Cron schedule for automated backups
 
 [auth]
 password_hash = "XXXXXXXXX"  # Password hash in bcrypt
